@@ -2,19 +2,6 @@
 import React, { useState } from "react";
 
 export default function FutureRoadmap() {
-  const [votes, setVotes] = useState({
-    "ai-insights": 0,
-    "data-integration": 0,
-    "collaboration": 0,
-    "custom-reports": 0,
-  });
-
-  const [hasVoted, setHasVoted] = useState({
-    "ai-insights": false,
-    "data-integration": false,
-    "collaboration": false,
-    "custom-reports": false,
-  });
 
   const [feedback, setFeedback] = useState("");
   const [email, setEmail] = useState("");
