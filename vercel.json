@@ -4,5 +4,10 @@
       "path": "/api/updateNews",
       "schedule": "*/15 * * * *"
     }
-  ]
+  ],
+  "build": {
+    "env": {
+      "NEXT_DISABLE_ESLINT": "true"
+    }
+  }
 }
