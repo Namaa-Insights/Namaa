@@ -1,6 +1,13 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/server";
 
+type ArticleEntity = {
+  symbol: string;
+  name?: string;
+  type?: string;
+  sentiment_score?: number;
+};
+
 type ArticleFromAPI = {
   uuid: string;
   title: string;
@@ -9,7 +16,7 @@ type ArticleFromAPI = {
   image_url: string;
   published_at: string;
   source: string;
-  entities: any[];
+  entities: ArticleEntity[];
   snippet: string;
 };
 
@@ -48,6 +55,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json({ message: `Updated ${news.length} articles` });
   } catch (error) {
+    console.error("News sync error:", error); 
     return NextResponse.json(
       { error: "Failed to update news" },
       { status: 500 }

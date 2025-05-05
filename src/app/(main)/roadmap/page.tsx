@@ -20,18 +20,6 @@ export default function FutureRoadmap() {
   const [email, setEmail] = useState("");
   const [isSubmitted, setIsSubmitted] = useState(false);
 
-  const handleUpvote = (featureId: keyof typeof votes) => {
-    if (!hasVoted[featureId]) {
-      setVotes({
-        ...votes,
-        [featureId]: votes[featureId] + 1,
-      });
-      setHasVoted({
-        ...hasVoted,
-        [featureId]: true,
-      });
-    }
-  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

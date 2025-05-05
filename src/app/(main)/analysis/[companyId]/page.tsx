@@ -1,6 +1,8 @@
 import React from "react";
 import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
+import type { SupabaseClient } from "@supabase/auth-helpers-nextjs";
+
 import MetricCard from "../../Components/MetricCard";
 import StockMetricsView from "../../Components/StockMetricsView";
 import { EarningsRevenueChart } from "../../Components/EarningsRevenueChart";
@@ -9,6 +11,8 @@ import PriceOverTimeChart from "../../Components/PriceOverTimeChart";
 import { StockMetric, Financial, StockMetricsData } from "@/types/common";
 import { formatCurrency } from "@/utils/formatters";
 
+// Define supabase client type
+type TypedSupabaseClient = SupabaseClient<any, "public", any>;
 
 // Utility functions
 const calcRatio = (
@@ -48,14 +52,8 @@ const calculateFinancialRatios = (financial: Financial | null) => {
     grossMargin: calcRatio(grossProfit, financial.total_revenue),
     netMargin: calcRatio(netIncome, financial.total_revenue),
     assetTurnover: calcRatio(financial.total_revenue, financial.total_assets),
-    currentRatio: calcRatio(
-      financial.current_assets,
-      financial.current_liabilities
-    ),
-    quickRatio: calcRatio(
-      financial.current_assets - financial.inventory,
-      financial.current_liabilities
-    ),
+    currentRatio: calcRatio(financial.current_assets, financial.current_liabilities),
+    quickRatio: calcRatio(financial.current_assets - financial.inventory, financial.current_liabilities),
     interestCoverage: calcRatio(financial.ebit, financial.interest_expenses),
   };
 };
@@ -71,21 +69,11 @@ const calculateAverageMetrics = (metrics: StockMetricsData[] | null) => {
     };
 
   return {
-    avgROE: avg(
-      filterNonNullNumbers(metrics.map((m) => Number(m.return_on_equity)))
-    ),
-    avgROA: avg(
-      filterNonNullNumbers(metrics.map((m) => Number(m.return_on_assets)))
-    ),
+    avgROE: avg(filterNonNullNumbers(metrics.map((m) => Number(m.return_on_equity)))),
+    avgROA: avg(filterNonNullNumbers(metrics.map((m) => Number(m.return_on_assets)))),
     avgEPS: avg(filterNonNullNumbers(metrics.map((m) => Number(m.eps)))),
-    avgPayout: avg(
-      filterNonNullNumbers(metrics.map((m) => Number(m.payout_ratio)))
-    ),
-    avgDividendYield: avg(
-      filterNonNullNumbers(
-        metrics.map((m) => Number(m.trailing_annual_dividend_rate))
-      )
-    ),
+    avgPayout: avg(filterNonNullNumbers(metrics.map((m) => Number(m.payout_ratio)))),
+    avgDividendYield: avg(filterNonNullNumbers(metrics.map((m) => Number(m.trailing_annual_dividend_rate)))),
   };
 };
 
@@ -100,136 +88,89 @@ const calculateAverageFinancialRatios = (financials: Financial[] | null) => {
       avgNetMargin: null,
     };
 
-  const assetTurnovers = financials.map((f) =>
-    calcRatio(f.total_revenue, f.total_assets)
-  );
-  const currentRatios = financials.map((f) =>
-    calcRatio(f.current_assets, f.current_liabilities)
-  );
-  const quickRatios = financials.map((f) =>
-    calcRatio(f.current_assets - f.inventory, f.current_liabilities)
-  );
-  const interestCoverages = financials.map((f) =>
-    calcRatio(f.ebit, f.interest_expenses)
-  );
-  const grossMargins = financials.map((f) =>
-    calcRatio(f.total_revenue - f.cost_of_revenue, f.total_revenue)
-  );
-  const netMargins = financials.map((f) =>
-    calcRatio(
-      f.total_revenue - f.cost_of_revenue - f.other_expenses,
-      f.total_revenue
-    )
-  );
-
   return {
-    avgAssetTurnover: avg(filterNonNullNumbers(assetTurnovers)),
-    avgCurrentRatio: avg(filterNonNullNumbers(currentRatios)),
-    avgQuickRatio: avg(filterNonNullNumbers(quickRatios)),
-    avgInterestCoverage: avg(filterNonNullNumbers(interestCoverages)),
-    avgGrossMargin: avg(filterNonNullNumbers(grossMargins)),
-    avgNetMargin: avg(filterNonNullNumbers(netMargins)),
+    avgAssetTurnover: avg(filterNonNullNumbers(financials.map((f) => calcRatio(f.total_revenue, f.total_assets)))),
+    avgCurrentRatio: avg(filterNonNullNumbers(financials.map((f) => calcRatio(f.current_assets, f.current_liabilities)))),
+    avgQuickRatio: avg(filterNonNullNumbers(financials.map((f) => calcRatio(f.current_assets - f.inventory, f.current_liabilities)))),
+    avgInterestCoverage: avg(filterNonNullNumbers(financials.map((f) => calcRatio(f.ebit, f.interest_expenses)))),
+    avgGrossMargin: avg(filterNonNullNumbers(financials.map((f) => calcRatio(f.total_revenue - f.cost_of_revenue, f.total_revenue)))),
+    avgNetMargin: avg(filterNonNullNumbers(financials.map((f) => calcRatio(f.total_revenue - f.cost_of_revenue - f.other_expenses, f.total_revenue)))),
   };
 };
 
-// Data fetching functions
-const fetchCompanyData = async (supabase: any, companyId: string) => {
-  const { data: company } = await supabase
-    .from("stocks")
-    .select("*")
-    .eq("stock_id", companyId)
-    .single();
-
-  return company;
+// Data fetching helpers
+const fetchCompanyData = async (supabase: TypedSupabaseClient, companyId: string) => {
+  const { data } = await supabase.from("stocks").select("*").eq("stock_id", companyId).single();
+  return data;
 };
 
-function getImageUrl(supabase: any, path: string) {
+const getImageUrl = (supabase: TypedSupabaseClient, path: string) => {
   const { data } = supabase.storage.from("logos").getPublicUrl(path);
   return data.publicUrl;
-}
+};
 
-const fetchCompanyMetrics = async (supabase: any, companyId: string) => {
-  const { data: metrics } = await supabase
+const fetchCompanyMetrics = async (supabase: TypedSupabaseClient, companyId: string) => {
+  const { data } = await supabase
     .from("stock_metrics")
     .select("*")
     .eq("stock_id", companyId)
     .order("date", { ascending: false })
     .limit(1)
     .single();
-
-  return metrics;
+  return data;
 };
 
-const fetchCompanyPrices = async (supabase: any, companyId: string) => {
-  const { data: prices } = await supabase
+const fetchCompanyPrices = async (supabase: TypedSupabaseClient, companyId: string) => {
+  const { data } = await supabase
     .from("stock_prices")
     .select("*")
     .eq("stock_id", companyId)
     .order("date", { ascending: false })
     .limit(7);
-
-  return prices;
+  return data;
 };
 
-const fetchCompanyFinancials = async (supabase: any, companyId: string) => {
-  const { data: financials } = await supabase
+const fetchCompanyFinancials = async (supabase: TypedSupabaseClient, companyId: string) => {
+  const { data } = await supabase
     .from("financials")
     .select("*")
     .eq("stock_id", companyId)
     .single();
-
-  return financials;
+  return data;
 };
 
-const fetchSectorStocks = async (supabase: any, sector: string) => {
-  const { data: allStocks } = await supabase
-    .from("stocks")
-    .select("stock_id, sector");
-
-  return (
-    allStocks?.filter((s: { stock_id: string; sector: string }) => s.sector === sector)
-      .map((s: { stock_id: string; sector: string }) => s.stock_id) ?? []
-  );
+const fetchSectorStocks = async (supabase: TypedSupabaseClient, sector: string) => {
+  const { data } = await supabase.from("stocks").select("stock_id, sector");
+  return data?.filter((s) => s.sector === sector).map((s) => s.stock_id) ?? [];
 };
 
-const fetchAllFinancials = async (supabase: any) => {
-  const { data: allFinancials } = await supabase
+const fetchAllFinancials = async (supabase: TypedSupabaseClient) => {
+  const { data } = await supabase
     .from("financials")
-    .select(
-      "stock_id, total_revenue, total_assets, cost_of_revenue, current_assets, current_liabilities, inventory, ebit, interest_expenses, other_expenses"
-    );
-
-  return allFinancials;
+    .select("stock_id, total_revenue, total_assets, cost_of_revenue, current_assets, current_liabilities, inventory, ebit, interest_expenses, other_expenses");
+  return data;
 };
 
-const fetchSectorMetrics = async (supabase: any, sectorStockIds: string[]) => {
-  const { data: sectorMetrics } = await supabase
+const fetchSectorMetrics = async (supabase: TypedSupabaseClient, ids: string[]) => {
+  const { data } = await supabase
     .from("stock_metrics")
-    .select(
-      "stock_id, return_on_equity, return_on_assets, payout_ratio, eps, trailing_annual_dividend_rate"
-    )
-    .in("stock_id", sectorStockIds);
-
-  return sectorMetrics;
+    .select("stock_id, return_on_equity, return_on_assets, payout_ratio, eps, trailing_annual_dividend_rate")
+    .in("stock_id", ids);
+  return data;
 };
 
-const fetchMarketMetrics = async (supabase: any) => {
-  const { data: marketMetrics } = await supabase
+const fetchMarketMetrics = async (supabase: TypedSupabaseClient) => {
+  const { data } = await supabase
     .from("stock_metrics")
-    .select(
-      "return_on_equity, return_on_assets, payout_ratio, eps, trailing_annual_dividend_rate"
-    );
-
-  return marketMetrics;
+    .select("return_on_equity, return_on_assets, payout_ratio, eps, trailing_annual_dividend_rate");
+  return data;
 };
-const fetchLatestMetricsForStocks = async (
-  supabase: any,
-  stockIds: string[]
-) => {
+
+const fetchLatestMetricsForStocks = async (supabase: TypedSupabaseClient, ids: string[]) => {
   const { data } = await supabase
     .from("stock_metrics")
     .select("stock_id, eps, date")
-    .in("stock_id", stockIds)
+    .in("stock_id", ids)
     .order("date", { ascending: false });
 
   const latestByStock: Record<string, number> = {};
@@ -241,14 +182,11 @@ const fetchLatestMetricsForStocks = async (
   return latestByStock;
 };
 
-const fetchLatestPricesForStocks = async (
-  supabase: any,
-  stockIds: string[]
-) => {
+const fetchLatestPricesForStocks = async (supabase: TypedSupabaseClient, ids: string[]) => {
   const { data } = await supabase
     .from("stock_prices")
     .select("stock_id, share_price, date")
-    .in("stock_id", stockIds)
+    .in("stock_id", ids)
     .order("date", { ascending: false });
 
   const latestPrices: Record<string, number> = {};
@@ -265,7 +203,6 @@ const computeAveragePE = (
   epsMap: Record<string, number>
 ) => {
   const peValues: number[] = [];
-
   for (const stockId of Object.keys(prices)) {
     const price = prices[stockId];
     const eps = epsMap[stockId];
@@ -273,33 +210,24 @@ const computeAveragePE = (
       peValues.push(price / eps);
     }
   }
-
   return avg(peValues);
 };
 
+// Main Page Component
 const Page = async ({ params }: { params: { companyId: string } }) => {
-  const supabase = createServerComponentClient({ cookies });
+  const supabase = createServerComponentClient({ cookies }) as TypedSupabaseClient;
   const { companyId } = params;
 
-  // Fetch company data
   const company = await fetchCompanyData(supabase, companyId);
   if (!company) {
-    return (
-      <div className="text-red-500 p-6">
-        Failed to fetch data for company ID: {companyId}
-      </div>
-    );
+    return <div className="text-red-500 p-6">Company not found</div>;
   }
 
-  // Fetch company specific data
   const metrics = await fetchCompanyMetrics(supabase, companyId);
   const prices = await fetchCompanyPrices(supabase, companyId);
   const financials = await fetchCompanyFinancials(supabase, companyId);
 
-  // Calculate financial ratios for the company
   const {
-    grossProfit,
-    netIncome,
     grossMargin,
     netMargin,
     assetTurnover,
@@ -308,58 +236,38 @@ const Page = async ({ params }: { params: { companyId: string } }) => {
     interestCoverage,
   } = calculateFinancialRatios(financials);
 
-  // Calculate PE ratio
-  const latestPrice = prices?.[0]?.share_price;
-  const peRatio =
-    latestPrice && metrics?.eps && Number(metrics.eps) !== 0
-      ? latestPrice / Number(metrics.eps)
-      : null;
+  const latestPrice = prices?.[0]?.share_price ?? 0;
+  const peRatio = latestPrice && metrics?.eps && Number(metrics.eps) !== 0
+    ? latestPrice / Number(metrics.eps)
+    : null;
 
   const dividendYield = metrics?.trailing_annual_dividend_rate ?? null;
+  const sharesOutstanding = Number(company.shares_outstanding) || 0;
+  const marketCap = latestPrice * sharesOutstanding;
 
-  // Fetch sector and market data
-  const sector = company.sector;
-  const sectorStockIds = await fetchSectorStocks(supabase, sector);
+  const sectorStockIds = await fetchSectorStocks(supabase, company.sector);
   const allFinancials = await fetchAllFinancials(supabase);
   const sectorMetrics = await fetchSectorMetrics(supabase, sectorStockIds);
   const marketMetrics = await fetchMarketMetrics(supabase);
 
   const allStockIds = allFinancials.map((f: Financial) => f.stock_id);
-
-  const sectorEPSMap = await fetchLatestMetricsForStocks(
-    supabase,
-    sectorStockIds
-  );
-  const sectorPricesMap = await fetchLatestPricesForStocks(
-    supabase,
-    sectorStockIds
-  );
+  const sectorEPSMap = await fetchLatestMetricsForStocks(supabase, sectorStockIds);
+  const sectorPricesMap = await fetchLatestPricesForStocks(supabase, sectorStockIds);
   const avgSectorPE = computeAveragePE(sectorPricesMap, sectorEPSMap);
 
   const marketEPSMap = await fetchLatestMetricsForStocks(supabase, allStockIds);
-  const marketPricesMap = await fetchLatestPricesForStocks(
-    supabase,
-    allStockIds
-  );
+  const marketPricesMap = await fetchLatestPricesForStocks(supabase, allStockIds);
   const avgMarketPE = computeAveragePE(marketPricesMap, marketEPSMap);
 
-  const sharesOutstanding = Number(company.shares_outstanding) || 0;
-  const marketCap = latestPrice * sharesOutstanding;
-  // Filter financials by sector
-  const sectorFinancials =
-    allFinancials?.filter((f: Financial) => sectorStockIds.includes(f.stock_id)) ?? [];
+  const sectorFinancials = allFinancials.filter((f) =>
+    sectorStockIds.includes(f.stock_id)
+  );
 
-  // Calculate sector and market averages
   const sectorMetricAverages = calculateAverageMetrics(sectorMetrics);
   const marketMetricAverages = calculateAverageMetrics(marketMetrics);
+  const sectorFinancialAverages = calculateAverageFinancialRatios(sectorFinancials);
+  const marketFinancialAverages = calculateAverageFinancialRatios(allFinancials);
 
-  const sectorFinancialAverages =
-    calculateAverageFinancialRatios(sectorFinancials);
-  const marketFinancialAverages =
-    calculateAverageFinancialRatios(allFinancials);
-
-
-  // Prepare metrics for the view
   const stockMetrics: StockMetric[] = [
     {
       title: "Return on Equity",
@@ -429,8 +337,8 @@ const Page = async ({ params }: { params: { companyId: string } }) => {
       title: "P/E Ratio",
       key: "pe",
       value: peRatio,
-      sector: avgSectorPE, //TODO
-      market: avgMarketPE, //TODO
+      sector: avgSectorPE,
+      market: avgMarketPE,
       isPercentage: false,
     },
     {
@@ -461,22 +369,16 @@ const Page = async ({ params }: { params: { companyId: string } }) => {
 
   return (
     <div className="p-6 space-y-6 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white">
-      {/* Company Overview */}
       <div className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md flex flex-col md:flex-row gap-6">
         <div className="md:w-2/3 space-y-6">
           <div className="flex items-center space-x-6">
-            {/* <div className="bg-black dark:bg-white text-white dark:text-black rounded-full w-20 h-20 flex items-center justify-center text-3xl font-bold shadow-md">
-              {company.ticker?.[0]}
-            </div> */}
             <div className="h-40 w-40 rounded-full overflow-hidden flex items-center justify-center bg-gray-50 dark:bg-gray-300">
-  <img
-    src={getImageUrl(supabase, company.logo_url)}
-    alt="Company Logo"
-    className="h-full w-full object-contain"
-  />
-</div>
-
-
+              <img
+                src={getImageUrl(supabase, company.logo_url)}
+                alt="Company Logo"
+                className="h-full w-full object-contain"
+              />
+            </div>
             <div>
               <h1 className="text-3xl font-bold">{company.company_name}</h1>
               <p className="text-base text-gray-600 dark:text-gray-300 mt-1">
@@ -493,12 +395,10 @@ const Page = async ({ params }: { params: { companyId: string } }) => {
               <strong>Market Cap:</strong> {formatCurrency(marketCap)}
             </div>
             <div className="p-3 bg-gray-100 dark:bg-gray-700 rounded-md">
-              <strong>Shares Outstanding:</strong>{" "}
-              {formatCurrency(sharesOutstanding) ?? "N/A"}
+              <strong>Shares Outstanding:</strong> {formatCurrency(sharesOutstanding)}
             </div>
             <div className="p-3 bg-gray-100 dark:bg-gray-700 rounded-md">
-              <strong>Price:</strong>{" "}
-              {latestPrice ? `${formatCurrency(latestPrice.toFixed(2))}` : "N/A"}
+              <strong>Price:</strong> {latestPrice ? formatCurrency(latestPrice.toFixed(2)) : "N/A"}
             </div>
           </div>
         </div>
@@ -516,12 +416,9 @@ const Page = async ({ params }: { params: { companyId: string } }) => {
 
       {metrics && (
         <div className="flex flex-col md:flex-row gap-6">
-          {/* Chart on the left */}
           <div className="md:w-1/2 h-full min-h-[280px]">
             <PriceOverTimeChart prices={prices ?? []} />
           </div>
-
-          {/* Metric cards on the right */}
           <div className="md:w-1/2 grid grid-cols-2 gap-4">
             <MetricCard title="Earnings Per Share (EPS)" value={metrics.eps} />
             <MetricCard
@@ -532,32 +429,19 @@ const Page = async ({ params }: { params: { companyId: string } }) => {
                   : "N/A"
               }
             />
-            <MetricCard
-              title="Dividend Yield"
-              value={metrics.trailing_annual_dividend_rate}
-            />
-            <MetricCard
-              title="Return on Equity"
-              value={metrics.return_on_equity}
-            />
+            <MetricCard title="Dividend Yield" value={metrics.trailing_annual_dividend_rate} />
+            <MetricCard title="Return on Equity" value={metrics.return_on_equity} />
           </div>
         </div>
       )}
 
-      {/* Chart Placeholders */}
-      <div className="p-6 space-y-6 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white">
-        {/* Company Overview */}
-        {/* ... Keep existing company UI */}
+      <StockMetricsView metrics={stockMetrics} />
 
-        {/* Metric Comparison Grid */}
-        <StockMetricsView metrics={stockMetrics} />
-
-        <EarningsRevenueChart
-          revenue={financials?.total_revenue}
-          costOfRevenue={financials?.cost_of_revenue}
-          otherExpenses={financials?.other_expenses}
-        />
-      </div>
+      <EarningsRevenueChart
+        revenue={financials?.total_revenue}
+        costOfRevenue={financials?.cost_of_revenue}
+        otherExpenses={financials?.other_expenses}
+      />
     </div>
   );
 };

@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/server";
 
-// Type declarations
 type StockPriceEntry = {
   stock_id: number;
   share_price: number;
@@ -40,15 +39,32 @@ type SupabaseStock = {
   user_follows?: UserFollow[];
 };
 
-// Cache state
+type SupabaseTransformedStock = {
+  stock_id: number;
+  ticker: string;
+  company_name: string;
+  company_name_arabic: string;
+  sector: string;
+  sector_arabic: string;
+  shares_outstanding: number;
+  oneYearAgoPrice: number | null;
+  oneMonthAgoPrice: number | null;
+  latest_price: { price: number };
+  latest_financial: Financial | null;
+  latest_metric: Metric | null;
+  is_followed: boolean;
+};
+
+type SheetPriceData = Record<string, { price: number }>;
+
 let cachedSupabaseData: SupabaseStock[] | null = null;
-let cachedSheetData: Record<string, any> | null = null;
+let cachedSheetData: SheetPriceData | null = null;
 let lastSupabaseFetched = 0;
 let lastSheetFetch = 0;
 const SUPABASE_CACHE_DURATION = 60 * 60 * 1000;
 const SHEET_CACHE_DURATION = 60 * 1000;
 
-let cachedResponse: { source: string; data: any } | null = null;
+let cachedResponse: { source: string; data: SupabaseTransformedStock[] } | null = null;
 let lastResponseFetch = 0;
 const RESPONSE_CACHE_DURATION = 60 * 1000;
 
@@ -58,7 +74,6 @@ export async function GET() {
 
   const {
     data: { session },
-    error: sessionError,
   } = await supabase.auth.getSession();
 
   const user_id = session?.user?.id;
@@ -70,8 +85,7 @@ export async function GET() {
 
     const { data, error } = await supabase
       .from("stocks")
-      .select(
-        `
+      .select(`
         stock_id,
         ticker,
         company_name,
@@ -79,28 +93,11 @@ export async function GET() {
         shares_outstanding,
         company_name_arabic,
         sector_arabic,
-        prices:stock_prices(
-          price_id,
-          share_price,
-          market_cap,
-          date
-        ),
-        financials:financials(
-          financial_id,
-          total_assets,
-          total_debt,
-          shareholders_equity,
-          date
-        ),
-        metrics:stock_metrics(
-          metric_id,
-          return_on_equity,
-          eps,
-          date
-        ),
+        prices:stock_prices(price_id, share_price, market_cap, date),
+        financials:financials(financial_id, total_assets, total_debt, shareholders_equity, date),
+        metrics:stock_metrics(metric_id, return_on_equity, eps, date),
         user_follows ( user_id )
-      `
-      )
+      `)
       .order("date", { ascending: false, referencedTable: "stock_prices" })
       .limit(1, { foreignTable: "prices" })
       .limit(1, { foreignTable: "financials" })
@@ -114,7 +111,7 @@ export async function GET() {
     return { source: "fresh", data: cachedSupabaseData };
   };
 
-  const fetchGoogleSheetData = async () => {
+  const fetchGoogleSheetData = async (): Promise<SheetPriceData> => {
     if (cachedSheetData && now - lastSheetFetch < SHEET_CACHE_DURATION) {
       return cachedSheetData;
     }
@@ -163,41 +160,37 @@ export async function GET() {
       .select("stock_id, share_price")
       .eq("date", oneMonthAgoDate.toISOString().split("T")[0]);
 
-    const transformedStocks = (supabaseData.data as SupabaseStock[]).map(
-      (stock) => {
-        const latestFinancial = stock.financials?.[0] || null;
-        const latestMetric = stock.metrics?.[0] || null;
+    const transformedStocks = (supabaseData.data as SupabaseStock[]).map((stock) => {
+      const latestFinancial = stock.financials?.[0] || null;
+      const latestMetric = stock.metrics?.[0] || null;
 
-        const oneYearAgoPrice =
-          oneYearAgoPrices.data?.find((p: StockPriceEntry) => p.stock_id === stock.stock_id)
-            ?.share_price || null;
+      const oneYearAgoPrice =
+        oneYearAgoPrices.data?.find((p) => p.stock_id === stock.stock_id)?.share_price ?? null;
 
-        const oneMonthAgoPrice =
-          oneMonthAgoPrices.data?.find((p: StockPriceEntry) => p.stock_id === stock.stock_id)
-            ?.share_price || null;
+      const oneMonthAgoPrice =
+        oneMonthAgoPrices.data?.find((p) => p.stock_id === stock.stock_id)?.share_price ?? null;
 
-        const is_followed =
-          !!user_id &&
-          Array.isArray(stock.user_follows) &&
-          stock.user_follows.some((follow) => follow.user_id === user_id);
+      const is_followed =
+        !!user_id &&
+        Array.isArray(stock.user_follows) &&
+        stock.user_follows.some((follow) => follow.user_id === user_id);
 
-        return {
-          stock_id: stock.stock_id,
-          ticker: stock.ticker,
-          company_name: stock.company_name,
-          company_name_arabic: stock.company_name_arabic,
-          sector: stock.sector,
-          sector_arabic: stock.sector_arabic,
-          shares_outstanding: stock.shares_outstanding,
-          oneYearAgoPrice,
-          oneMonthAgoPrice,
-          latest_price: googleSheetData[stock.ticker],
-          latest_financial: latestFinancial,
-          latest_metric: latestMetric,
-          is_followed,
-        };
-      }
-    );
+      return {
+        stock_id: stock.stock_id,
+        ticker: stock.ticker,
+        company_name: stock.company_name,
+        company_name_arabic: stock.company_name_arabic,
+        sector: stock.sector,
+        sector_arabic: stock.sector_arabic,
+        shares_outstanding: stock.shares_outstanding,
+        oneYearAgoPrice,
+        oneMonthAgoPrice,
+        latest_price: googleSheetData[stock.ticker],
+        latest_financial: latestFinancial,
+        latest_metric: latestMetric,
+        is_followed,
+      };
+    });
 
     cachedResponse = {
       source: "fresh",
