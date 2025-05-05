@@ -9,6 +9,12 @@ import PriceOverTimeChart from "../../Components/PriceOverTimeChart";
 import { StockMetric, Financial, StockMetricsData } from "@/types/common";
 import { formatCurrency } from "@/utils/formatters";
 
+interface PageProps {
+  params: {
+    companyId: string;
+  };
+}
+
 
 // Utility functions
 const calcRatio = (
@@ -276,7 +282,7 @@ const computeAveragePE = (
   return avg(peValues);
 };
 
-const Page = async ({ params }: { params: { companyId: string } }) => {
+const Page = async ({ params }: PageProps) => {
   const supabase = createServerComponentClient({ cookies });
   const { companyId } = params;
 
