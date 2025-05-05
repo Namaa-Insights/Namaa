@@ -1,4 +1,4 @@
-export async function POST(request: Request) {
+export async function POST() {
     const response = await fetch(`https://script.google.com/macros/s/${process.env.CURRENT_PRICES_API_TOKEN}/exec`, {
       method: "POST",
       headers: {

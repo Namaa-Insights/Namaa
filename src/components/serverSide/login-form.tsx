@@ -2,7 +2,6 @@
 
 import { cn } from "@/lib/utils"
 import { FaGoogle } from "react-icons/fa";
-import { IoIosArrowBack } from "react-icons/io";
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -16,6 +15,7 @@ import { Label } from "@/components/ui/label"
 
 import { login } from '@/utils/actions/login'
 import { signinWithGoogle } from "@/utils/actions/signinWithOAuth";
+import Link from "next/link";
 
 export async function LoginForm({
   className,
@@ -27,9 +27,9 @@ export async function LoginForm({
         <CardHeader>
           <div className="flex justify-end">
             <Button className="">
-              <a href="/">
+              <Link href="/">
                 Back
-              </a>
+              </Link>
             </Button>
           </div>
           <CardTitle className="text-2xl">Login</CardTitle>

@@ -10,7 +10,7 @@ import FollowedStockPriceChart from "./Components/FollowedStockPriceChart";
 
 export default function DashboardPage() {
   const [portfolio, setPortfolio] = useState<Stock[]>([]);
-  const [news, setNews] = useState<Article[]>([]);
+  const [, setNews] = useState<Article[]>([]);
   const [newsLoading, setNewsLoading] = useState(true);
   const [stockLoading, setStockLoading] = useState(true);
 

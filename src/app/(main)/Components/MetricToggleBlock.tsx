@@ -7,7 +7,6 @@ import { MetricToggleBlockProps } from '@/types/common'
 
 export const MetricToggleBlock = ({
   title,
-  keyName,
   value,
   sector,
   market,

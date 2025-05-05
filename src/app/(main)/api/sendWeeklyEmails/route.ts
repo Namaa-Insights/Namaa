@@ -2,28 +2,34 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/client';
 import { Resend } from 'resend';
 
+// --- Types ---
+type UserStock = {
+  company_name: string;
+  sector: string;
+  latest_price: number | null;
+  previous_price: number | null;
+};
 
-// Initialize the Supabase client using environment variables.
-// These variables must be set in your environment (e.g., .env.local)
+type UserRecord = {
+  email: string;
+  stocks: UserStock[];
+};
+
+// Initialize Supabase
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY!;
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-// Initialize the Resend client using the API key from your environment.
+// Initialize Resend
 const resendApiKey = process.env.RESEND_API_KEY!;
 const resend = new Resend(resendApiKey);
 
-/**
- * Helper function to build the HTML content for the email
- * using the user's stocks data.
- */
-
-function createEmailContent(stocks: any[]): string {
+// Build Email HTML Content
+function createEmailContent(stocks: UserStock[]): string {
   if (!stocks || stocks.length === 0) {
     return `<p>You are not following any stocks at the moment.</p>`;
   }
 
-  // Define the table header and styles (with the updated columns).
   const tableHeader = `
     <table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse; width: 100%;">
       <thead>
@@ -37,14 +43,10 @@ function createEmailContent(stocks: any[]): string {
       <tbody>
   `;
 
-  // Build each row of the table for each stock.
   const tableRows = stocks
-    .map((stock: any) => {
-      // Format prices with a dollar sign, or return 'N/A' if missing.
-      const latestPrice = stock.latest_price ? `﷼${stock.latest_price}` : 'N/A';
-      // const latestDate = stock.latest_date ? new Date(stock.latest_date).toLocaleDateString() : 'N/A';
-      const previousPrice = stock.previous_price ? `﷼${stock.previous_price}` : 'N/A';
-      // const previousDate = stock.previous_date ? new Date(stock.previous_date).toLocaleDateString() : 'N/A';
+    .map((stock: UserStock) => {
+      const latestPrice = stock.latest_price !== null ? `﷼${stock.latest_price}` : 'N/A';
+      const previousPrice = stock.previous_price !== null ? `﷼${stock.previous_price}` : 'N/A';
 
       return `
         <tr>
@@ -57,28 +59,19 @@ function createEmailContent(stocks: any[]): string {
     })
     .join('');
 
-  // Close the table tag.
   const tableFooter = `
       </tbody>
     </table>
   `;
 
-  // Return the complete HTML content.
   return `<p>Here is your weekly stock update:</p>${tableHeader}${tableRows}${tableFooter}`;
 }
 
-
-/**
- * POST handler for our API route.
- * This will:
- * - Call the Supabase RPC function 'get_user_stock_data'
- * - Iterate through each user record
- * - Build and send an email using Resend.
- */
+// POST Handler
 export async function POST() {
   try {
-    // Call the custom RPC function defined in Supabase.
-    const { data, error } = await (await supabase).rpc('get_user_stock_data');
+    const { data, error } = await supabase.rpc('get_user_stock_data');
+
     if (error) {
       console.error('Error fetching user stock data:', error);
       return NextResponse.json(
@@ -92,16 +85,14 @@ export async function POST() {
       return NextResponse.json({ message: 'No user data to process' });
     }
 
-    // Loop through each record and send emails.
-    for (const record of data) {
-      const { email, stocks } = record; // 'stocks' is our aggregated JSON array.
+    for (const record of data as UserRecord[]) {
+      const { email, stocks } = record;
       const emailHtml = createEmailContent(stocks);
 
       try {
         await resend.emails.send({
-          from: 'Weekly-Update@bahamdan.info', // Replace with your verified sender email.
+          from: 'Weekly-Update@bahamdan.info',
           to: email,
-          // to: ["Fares.bahamdan@gmail.com"],
           subject: 'Your Weekly Stock Update',
           html: emailHtml,
         });

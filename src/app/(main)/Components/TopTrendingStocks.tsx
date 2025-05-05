@@ -13,20 +13,30 @@ interface TrendingStock {
   price: string;
 }
 
+interface StockApiResponse {
+  company_name: string;
+  ticker: string;
+  latest_price?: {
+    price?: string;
+    high?: string;
+    low?: string;
+  };
+}
+
 export default function TopTrendingStocks() {
   const [trending, setTrending] = useState<TrendingStock[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchTrending = async () => {
       try {
         const res = await fetch("/api/fetchStocks");
-        const data = await res.json();
+        const data: StockApiResponse[] = await res.json();
 
         const trendingStocks = data
-          .map((stock: any) => {
-            const high = parseFloat(stock.latest_price?.high) || 0;
-            const low = parseFloat(stock.latest_price?.low) || 0;
+          .map((stock: StockApiResponse) => {
+            const high = parseFloat(stock.latest_price?.high ?? "0");
+            const low = parseFloat(stock.latest_price?.low ?? "0");
             const delta = parseFloat((high - low).toFixed(2));
 
             return {
@@ -35,11 +45,11 @@ export default function TopTrendingStocks() {
               high,
               low,
               delta,
-              price: formatCurrency(parseFloat(stock.latest_price?.price) || 0),
+              price: formatCurrency(parseFloat(stock.latest_price?.price ?? "0")),
             };
           })
-          .filter((stock: TrendingStock) => stock.high && stock.low)
-          .sort((a: TrendingStock, b: TrendingStock) => b.delta - a.delta)
+          .filter((stock) => stock.high && stock.low)
+          .sort((a, b) => b.delta - a.delta)
           .slice(0, 10);
 
         setTrending(trendingStocks);
@@ -52,7 +62,6 @@ export default function TopTrendingStocks() {
 
     fetchTrending();
   }, []);
-
 
   return (
     <div className="max-w-xl overflow-x-auto shadow rounded-lg">

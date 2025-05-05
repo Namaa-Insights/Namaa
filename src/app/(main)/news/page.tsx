@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createClient } from "@/utils/supabase/client";
 import Loading from "../Components/Loading";
 import { Article } from '@/types/common' 
 
@@ -63,7 +62,7 @@ export default function News() {
                 <span className="mx-2">•</span>
                 <span>{article.source}</span>
                 {article.entities?.map((entity) => (
-                  <div className="flex flex-row space-x-2 items-center">
+                  <div key={entity.symbol} className="flex flex-row space-x-2 items-center">
                     <span
                       key={entity.symbol}
                       className="ml-2 px-2 py-1 bg-blue-100 dark:bg-blue-900 rounded-full"

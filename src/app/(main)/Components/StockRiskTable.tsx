@@ -1,5 +1,4 @@
 // components/StockRiskTable.tsx
-import { Card, CardContent } from "@/components/ui/card";
 import { StockRisk } from '@/types/common'
 
 const riskColors = {

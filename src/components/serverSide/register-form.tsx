@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 
 import { register } from '@/utils/actions/register'
+import Link from "next/link"
 
 export async function RegisterForm({
   className,
@@ -24,9 +25,9 @@ export async function RegisterForm({
         <CardHeader>
           <div className="flex justify-end">
             <Button className="">
-              <a href="/">
+              <Link href="/">
                 Back
-              </a>
+              </Link>
             </Button>
           </div>
           <CardTitle className="text-2xl">Register</CardTitle>

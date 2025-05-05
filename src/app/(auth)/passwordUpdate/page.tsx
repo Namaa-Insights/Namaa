@@ -6,7 +6,7 @@ import { createClient } from '@/utils/supabase/client'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
 export default function UpdatePasswordPage() {
-  const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
+  const supabase = createClient()
   const router = useRouter()
   const [password, setPassword] = useState('')
   const [message, setMessage] = useState('')
@@ -15,7 +15,7 @@ export default function UpdatePasswordPage() {
   useEffect(() => {
     // Process the reset token in the URL if it exists.
     if (window.location.hash.includes('access_token')) {
-      supabase.auth.exchangeCodeForSession(window.location.hash).then(({ data, error }) => {
+      supabase.auth.exchangeCodeForSession(window.location.hash).then(({ error }) => {
         if (error) {
           setError(error.message)
         }

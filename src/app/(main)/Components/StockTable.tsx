@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Stock } from '@/types/common';
+import { Stock } from "@/types/common";
 import { formatCurrency } from "@/utils/formatters";
 
 interface StockTableProps {
@@ -30,7 +30,7 @@ export default function StockTable({ stocks, onSaveAll }: StockTableProps) {
     setSaveStatus("saving");
     const result = await onSaveAll(localStocks);
     setSaveStatus(result ? "success" : "error");
-    setTimeout(() => setSaveStatus("idle"), 3000); // Reset after 3 sec
+    setTimeout(() => setSaveStatus("idle"), 3000);
   };
 
   return (
@@ -71,14 +71,13 @@ export default function StockTable({ stocks, onSaveAll }: StockTableProps) {
           ) : (
             <tr>
               <td colSpan={3} className="p-6 text-center text-gray-500">
-                You haven't followed any stocks yet.
+                You haven&rsquo;t followed any stocks yet.
               </td>
             </tr>
           )}
         </tbody>
       </table>
 
-      {/* Save Button */}
       {localStocks.length > 0 && (
         <div className="flex flex-col items-center mt-4">
           <Button
@@ -89,7 +88,6 @@ export default function StockTable({ stocks, onSaveAll }: StockTableProps) {
             {saveStatus === "saving" ? "Saving..." : "Save All Changes"}
           </Button>
 
-          {/* Status Message */}
           {saveStatus === "success" && (
             <p className="mt-2 text-green-600 font-medium">Stocks updated successfully!</p>
           )}

@@ -1,16 +1,56 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/server";
 
-let cachedSupabaseData: any = null;
-let cachedSheetData: any = null;
+// Type declarations
+type StockPriceEntry = {
+  stock_id: number;
+  share_price: number;
+};
+
+type UserFollow = {
+  user_id: string;
+};
+
+type Financial = {
+  financial_id: number;
+  total_assets: number;
+  total_debt: number;
+  shareholders_equity: number;
+  date: string;
+};
+
+type Metric = {
+  metric_id: number;
+  return_on_equity: number;
+  eps: number;
+  date: string;
+};
+
+type SupabaseStock = {
+  stock_id: number;
+  ticker: string;
+  company_name: string;
+  company_name_arabic: string;
+  sector: string;
+  sector_arabic: string;
+  shares_outstanding: number;
+  prices?: StockPriceEntry[];
+  financials?: Financial[];
+  metrics?: Metric[];
+  user_follows?: UserFollow[];
+};
+
+// Cache state
+let cachedSupabaseData: SupabaseStock[] | null = null;
+let cachedSheetData: Record<string, any> | null = null;
 let lastSupabaseFetched = 0;
 let lastSheetFetch = 0;
-const SUPABASE_CACHE_DURATION = 60 * 60 * 1000; // 1 hour
-const SHEET_CACHE_DURATION = 60 * 1000; // 60 seconds
+const SUPABASE_CACHE_DURATION = 60 * 60 * 1000;
+const SHEET_CACHE_DURATION = 60 * 1000;
 
-let cachedResponse: any = null;
+let cachedResponse: { source: string; data: any } | null = null;
 let lastResponseFetch = 0;
-const RESPONSE_CACHE_DURATION = 60 * 1000; // Cache the full response for 1 minute
+const RESPONSE_CACHE_DURATION = 60 * 1000;
 
 export async function GET() {
   const now = Date.now();
@@ -20,22 +60,14 @@ export async function GET() {
     data: { session },
     error: sessionError,
   } = await supabase.auth.getSession();
-  if (sessionError) {
-    console.error("Session error:", sessionError);
-    // Proceed without a user id if desired, but note no follows will be marked
-  }
+
   const user_id = session?.user?.id;
 
   const fetchSupabaseData = async () => {
+    if (cachedSupabaseData && now - lastSupabaseFetched < SUPABASE_CACHE_DURATION) {
+      return { source: "cache", data: cachedSupabaseData };
+    }
 
-  // Serve from cache if within cache duration
-  if (cachedSupabaseData && now - lastSupabaseFetched < SUPABASE_CACHE_DURATION) {
-    return { source: 'cache', data: cachedSupabaseData };
-  }
-
-    // Get the current session to determine the user id
-
-    // Fetch stocks including the join to user_follows using the foreign table name (ensure the relationship exists)
     const { data, error } = await supabase
       .from("stocks")
       .select(
@@ -46,7 +78,7 @@ export async function GET() {
         sector,
         shares_outstanding,
         company_name_arabic,
-        sector_arabic, 
+        sector_arabic,
         prices:stock_prices(
           price_id,
           share_price,
@@ -76,24 +108,25 @@ export async function GET() {
 
     if (error) throw new Error(error.message);
 
-    cachedSupabaseData = data;
+    cachedSupabaseData = data as SupabaseStock[];
     lastSupabaseFetched = now;
-    return { source: 'fresh', data: data ?? [] };
-  }
+
+    return { source: "fresh", data: cachedSupabaseData };
+  };
 
   const fetchGoogleSheetData = async () => {
     if (cachedSheetData && now - lastSheetFetch < SHEET_CACHE_DURATION) {
       return cachedSheetData;
     }
+
     const res = await fetch(`${process.env.SITE_URL}/api/fetchCurrentPrices`, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
     });
 
-    if (!res.ok) throw new Error('Google Sheets fetch failed');
+    if (!res.ok) throw new Error("Google Sheets fetch failed");
 
     const sheetData = await res.json();
-
     cachedSheetData = sheetData;
     lastSheetFetch = now;
 
@@ -103,59 +136,51 @@ export async function GET() {
   if (cachedResponse && now - lastResponseFetch < RESPONSE_CACHE_DURATION) {
     return NextResponse.json(cachedResponse.data, {
       headers: {
-        'Cache-Control': 's-maxage=60, stale-while-revalidate=120', // Cache for 60 seconds and allow stale content for 120 seconds
+        "Cache-Control": "s-maxage=60, stale-while-revalidate=120",
       },
     });
   }
 
   try {
-    // Fetch both in parallel
     const [supabaseData, googleSheetData] = await Promise.all([
       fetchSupabaseData(),
       fetchGoogleSheetData(),
     ]);
 
-
-    let oneYearAgoDate = new Date();
-    let oneMonthAgoDate = new Date();
-    oneYearAgoDate.setFullYear(oneYearAgoDate.getFullYear() - 1); 
+    const oneYearAgoDate = new Date();
+    const oneMonthAgoDate = new Date();
+    oneYearAgoDate.setFullYear(oneYearAgoDate.getFullYear() - 1);
     oneYearAgoDate.setDate(1);
-    oneMonthAgoDate.setMonth(oneMonthAgoDate.getMonth() - 1)
-  
+    oneMonthAgoDate.setMonth(oneMonthAgoDate.getMonth() - 1);
+
     const oneYearAgoPrices = await supabase
-        .from("stock_prices")
-        .select("stock_id, share_price")
-        .eq("date", oneYearAgoDate.toISOString().split("T")[0]);
-  
+      .from("stock_prices")
+      .select("stock_id, share_price")
+      .eq("date", oneYearAgoDate.toISOString().split("T")[0]);
+
     const oneMonthAgoPrices = await supabase
-        .from("stock_prices")
-        .select("stock_id, share_price")
-        .eq("date", oneMonthAgoDate.toISOString().split("T")[0]);
-  
-    // Transform the data for the frontend
-    const transformedStocks = supabaseData.data.map((stock:any) => {
-      const latestFinancial = stock.financials?.[0];
-      const latestMetric = stock.metrics?.[0];
-  
+      .from("stock_prices")
+      .select("stock_id, share_price")
+      .eq("date", oneMonthAgoDate.toISOString().split("T")[0]);
+
+    const transformedStocks = (supabaseData.data as SupabaseStock[]).map(
+      (stock) => {
+        const latestFinancial = stock.financials?.[0] || null;
+        const latestMetric = stock.metrics?.[0] || null;
+
         const oneYearAgoPrice =
-          oneYearAgoPrices.data?.find((p) => p.stock_id === stock.stock_id)?.share_price || null;
-          
-      const oneMonthAgoPrice =
-          oneMonthAgoPrices.data?.find((p) => p.stock_id == stock.stock_id)?.share_price || null;
-  
-  
-        // Determine if this stock is followed by the current user
-        let is_followed = false;
-        if (
-          user_id &&
+          oneYearAgoPrices.data?.find((p: StockPriceEntry) => p.stock_id === stock.stock_id)
+            ?.share_price || null;
+
+        const oneMonthAgoPrice =
+          oneMonthAgoPrices.data?.find((p: StockPriceEntry) => p.stock_id === stock.stock_id)
+            ?.share_price || null;
+
+        const is_followed =
+          !!user_id &&
           Array.isArray(stock.user_follows) &&
-          stock.user_follows.length > 0
-        ) {
-          is_followed = stock.user_follows.some(
-            (follow: any) => follow.user_id === user_id
-          );
-        }
-  
+          stock.user_follows.some((follow) => follow.user_id === user_id);
+
         return {
           stock_id: stock.stock_id,
           ticker: stock.ticker,
@@ -164,27 +189,33 @@ export async function GET() {
           sector: stock.sector,
           sector_arabic: stock.sector_arabic,
           shares_outstanding: stock.shares_outstanding,
-          oneYearAgoPrice: oneYearAgoPrice,
-          oneMonthAgoPrice: oneMonthAgoPrice,
+          oneYearAgoPrice,
+          oneMonthAgoPrice,
           latest_price: googleSheetData[stock.ticker],
           latest_financial: latestFinancial,
           latest_metric: latestMetric,
-          is_followed, // This flag indicates if the current user follows the stock
+          is_followed,
         };
-      });
+      }
+    );
 
-      cachedResponse = {
-        source: 'fresh',
-        data: transformedStocks,
-      };
-      lastResponseFetch = now;
-  
-      return NextResponse.json(cachedResponse.data, {
-        headers: {
-          'Cache-Control': 's-maxage=60, stale-while-revalidate=120',
-        },
-      });
-    } catch (err: any) {
-      return NextResponse.json({ error: 'Failed to load data', details: err.message }, { status: 500 });
-    }
+    cachedResponse = {
+      source: "fresh",
+      data: transformedStocks,
+    };
+    lastResponseFetch = now;
+
+    return NextResponse.json(transformedStocks, {
+      headers: {
+        "Cache-Control": "s-maxage=60, stale-while-revalidate=120",
+      },
+    });
+  } catch (err: unknown) {
+    const errorMessage =
+      err instanceof Error ? err.message : "Unknown error occurred";
+    return NextResponse.json(
+      { error: "Failed to load data", details: errorMessage },
+      { status: 500 }
+    );
+  }
 }

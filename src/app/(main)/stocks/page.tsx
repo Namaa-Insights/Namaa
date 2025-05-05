@@ -5,7 +5,25 @@ import { useEffect, useState } from "react";
 import { FaHeart, FaRegHeart } from "react-icons/fa";
 import Loading from "../Components/Loading";
 import { formatCurrency } from "@/utils/formatters";
-import { Company } from '@/types/common'
+import { Company } from "@/types/common";
+
+type StockResponse = {
+  stock_id: number;
+  ticker: string;
+  company_name: string;
+  latest_price: {
+    price: string;
+    open: string;
+    high: string;
+    low: string;
+    volume: string;
+    marketcap: string;
+  };
+  shares_outstanding: string;
+  oneMonthAgoPrice: string;
+  oneYearAgoPrice: string;
+  is_followed: boolean;
+};
 
 export default function CompaniesPage() {
   const router = useRouter();
@@ -30,25 +48,23 @@ export default function CompaniesPage() {
 
         const stocksData = await response.json();
 
-        const companies: Company[] = stocksData.map((stock: any) => {
+        const companies: Company[] = stocksData.map((stock: StockResponse) => {
           const latestPrice = stock.latest_price || {
-            price: 0,
-            open: 0,
-            high: 0,
-            low: 0,
-            volume: 0,
-            marketcap: 0,
+            price: "0",
+            open: "0",
+            high: "0",
+            low: "0",
+            volume: "0",
+            marketcap: "0",
           };
 
-          const sharesOutstanding = parseFloat(stock.shares_outstanding) || 0;
-          const sharePrice = parseFloat(latestPrice?.price) || 0;
-          const openPrice = parseFloat(latestPrice?.open) || 0;
-          const highPrice = parseFloat(latestPrice?.high) || 0;
-          const lowPrice = parseFloat(latestPrice?.low) || 0;
-          const volume = parseFloat(latestPrice?.volume) || 0;
-          const marketcap = parseFloat(latestPrice?.marketcap) || 0;
+          const sharePrice = parseFloat(latestPrice.price) || 0;
+          const openPrice = parseFloat(latestPrice.open) || 0;
+          const highPrice = parseFloat(latestPrice.high) || 0;
+          const lowPrice = parseFloat(latestPrice.low) || 0;
+          const volume = parseFloat(latestPrice.volume) || 0;
+          const marketcap = parseFloat(latestPrice.marketcap) || 0;
 
-          // Calculate changes over different periods
           const change30D = calculatePriceChange(latestPrice.price, stock.oneMonthAgoPrice);
           const change1Y = calculatePriceChange(latestPrice.price, stock.oneYearAgoPrice);
           const changeToday = calculatePriceChange(latestPrice.price, latestPrice.open);
@@ -84,13 +100,9 @@ export default function CompaniesPage() {
   }, []);
 
   const calculatePriceChange = (strLatestPrice: string, strHistoricalPrice: string): string => {
+    if (!strLatestPrice || !strHistoricalPrice) return "0%";
     const latestPrice = Number.parseFloat(strLatestPrice);
     const historicalPrice = Number.parseFloat(strHistoricalPrice);
-
-    // console.log(latestPrice)
-
-    if (!strLatestPrice || !strHistoricalPrice) return '0%';
-
     const change = ((latestPrice - historicalPrice) / historicalPrice) * 100;
     return change >= 0 ? `+${change.toFixed(1)}%` : `${change.toFixed(1)}%`;
   };
@@ -154,26 +166,16 @@ export default function CompaniesPage() {
       const aVal = a[key] || "";
       const bVal = b[key] || "";
 
-      const isNumeric =
-        !isNaN(Number(aVal.toString().replace(/[^0-9.-]+/g, ""))) &&
-        !isNaN(Number(bVal.toString().replace(/[^0-9.-]+/g, "")));
+      const aNum = Number(aVal.toString().replace(/[^0-9.-]+/g, ""));
+      const bNum = Number(bVal.toString().replace(/[^0-9.-]+/g, ""));
 
-      const aNum = isNumeric
-        ? Number(aVal.toString().replace(/[^0-9.-]+/g, ""))
-        : aVal;
-      const bNum = isNumeric
-        ? Number(bVal.toString().replace(/[^0-9.-]+/g, ""))
-        : bVal;
-
-      if (isNumeric) {
-        const aParsed = Number(aVal.toString().replace(/[^0-9.-]+/g, ""));
-        const bParsed = Number(bVal.toString().replace(/[^0-9.-]+/g, ""));
-        return direction === "asc" ? aParsed - bParsed : bParsed - aParsed;
+      if (!isNaN(aNum) && !isNaN(bNum)) {
+        return direction === "asc" ? aNum - bNum : bNum - aNum;
       }
 
       return direction === "asc"
-        ? aNum.toString().localeCompare(bNum.toString())
-        : bNum.toString().localeCompare(aNum.toString());
+        ? aVal.toString().localeCompare(bVal.toString())
+        : bVal.toString().localeCompare(aVal.toString());
     });
   };
 
@@ -230,14 +232,14 @@ export default function CompaniesPage() {
                 className="hover:bg-gray-200 dark:hover:bg-gray-700 cursor-pointer transition-colors"
               >
                 <td className="font-SaudiRiyal px-3 py-4">{company.name}</td>
-                <td className="font-SaudiRiyal px-3 py-4 text-center align-middle">{company.marketCap}</td>
-                <td className="font-SaudiRiyal px-3 py-4 text-center align-middle">{company.price}</td>
-                <td className="font-SaudiRiyal px-3 py-4 text-center align-middle">{company.open}</td>
-                <td className="font-SaudiRiyal px-3 py-4 text-center align-middle">{company.high}</td>
-                <td className="font-SaudiRiyal px-3 py-4 text-center align-middle">{company.low}</td>
-                <td className="font-SaudiRiyal px-3 py-4 text-center align-middle">{company.volume}</td>
+                <td className="font-SaudiRiyal px-3 py-4 text-center">{company.marketCap}</td>
+                <td className="font-SaudiRiyal px-3 py-4 text-center">{company.price}</td>
+                <td className="font-SaudiRiyal px-3 py-4 text-center">{company.open}</td>
+                <td className="font-SaudiRiyal px-3 py-4 text-center">{company.high}</td>
+                <td className="font-SaudiRiyal px-3 py-4 text-center">{company.low}</td>
+                <td className="font-SaudiRiyal px-3 py-4 text-center">{company.volume}</td>
                 <td
-                  className={`px-3 py-4 text-center align-middle ${
+                  className={`px-3 py-4 text-center ${
                     company.change30D.startsWith("+")
                       ? "text-green-600 dark:text-green-400"
                       : "text-red-600 dark:text-red-400"
@@ -246,7 +248,7 @@ export default function CompaniesPage() {
                   {company.change30D}
                 </td>
                 <td
-                  className={`px-3 py-4 text-center align-middle ${
+                  className={`px-3 py-4 text-center ${
                     company.change1Y.startsWith("+")
                       ? "text-green-600 dark:text-green-400"
                       : "text-red-600 dark:text-red-400"
@@ -255,7 +257,7 @@ export default function CompaniesPage() {
                   {company.change1Y}
                 </td>
                 <td
-                  className={`px-3 py-4 text-center align-middle ${
+                  className={`px-3 py-4 text-center ${
                     company.changeToday.startsWith("+")
                       ? "text-green-600 dark:text-green-400"
                       : "text-red-600 dark:text-red-400"
@@ -263,7 +265,7 @@ export default function CompaniesPage() {
                 >
                   {company.changeToday}
                 </td>
-                <td className="px-3 py-4 text-center align-middle">
+                <td className="px-3 py-4 text-center">
                   <button
                     onClick={(e) => {
                       e.stopPropagation();

@@ -2,6 +2,22 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/server";
 
+type StockPriceRecord = {
+  date: string;
+  share_price: number;
+};
+
+type StockData = {
+  ticker: string;
+  company_name: string;
+  stock_prices: StockPriceRecord[];
+};
+
+type FollowedStockRecord = {
+  stock_id: number;
+  stocks: StockData;
+};
+
 export async function GET() {
   try {
     const supabase = await createClient();
@@ -34,7 +50,7 @@ export async function GET() {
         )
       `
       )
-      .eq("user_id", user_id)
+      .eq("user_id", user_id);
 
     if (error) {
       console.error("Supabase fetch error:", error);
@@ -42,25 +58,26 @@ export async function GET() {
     }
 
     // Transform the data for easier consumption by the frontend
-    const transformedData = followedStocks.map((entry: any) => {
-      const stock = entry.stocks;
+    const transformedData = (followedStocks as FollowedStockRecord[]).map(
+      (entry) => {
+        const stock = entry.stocks;
 
-      // Sort prices by date (newest to oldest)
-      const sortedPrices = (stock?.stock_prices || []).sort(
-        (a: any, b: any) =>
-          new Date(b.date).getTime() - new Date(a.date).getTime()
-      );
+        const sortedPrices = [...(stock?.stock_prices || [])].sort(
+          (a, b) =>
+            new Date(b.date).getTime() - new Date(a.date).getTime()
+        );
 
-      return {
-        ticker: stock.ticker,
-        company_name: stock.company_name,
-        stock_id: entry.stock_id,
-        prices: sortedPrices.map((price: any) => ({
-          date: price.date,
-          share_price: price.share_price,
-        })),
-      };
-    });
+        return {
+          ticker: stock.ticker,
+          company_name: stock.company_name,
+          stock_id: entry.stock_id,
+          prices: sortedPrices.map((price) => ({
+            date: price.date,
+            share_price: price.share_price,
+          })),
+        };
+      }
+    );
 
     return NextResponse.json(transformedData);
   } catch (err) {
@@ -71,7 +88,3 @@ export async function GET() {
     );
   }
 }
-function order(arg0: string, arg1: { ascending: boolean; }) {
-    throw new Error("Function not implemented.");
-}
-

@@ -1,8 +1,19 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/server";
 
-export async function GET(request: Request) {
+type ArticleFromAPI = {
+  uuid: string;
+  title: string;
+  description: string;
+  url: string;
+  image_url: string;
+  published_at: string;
+  source: string;
+  entities: any[];
+  snippet: string;
+};
 
+export async function GET(request: Request) {
   const authHeader = request.headers.get("Authorization");
   if (
     process.env.CRON_SECRET &&
@@ -15,11 +26,11 @@ export async function GET(request: Request) {
     const apiToken = process.env.MARKETAUX_API_TOKEN;
     const url = `https://api.marketaux.com/v1/news/all?countries=sa&filter_entities=true&api_token=${apiToken}`;
     const response = await fetch(url);
-    const { data: news } = await response.json();
+    const { data: news }: { data: ArticleFromAPI[] } = await response.json();
 
     const supabase = await createClient();
-    const { error } = await supabase.from("news_articles").upsert(
-      news.map((article: any) => ({
+    const upsertResult = await supabase.from("news_articles").upsert(
+      news.map((article: ArticleFromAPI) => ({
         uuid: article.uuid,
         title: article.title,
         description: article.description,
@@ -33,7 +44,7 @@ export async function GET(request: Request) {
       { onConflict: "uuid" }
     );
 
-    if (error) throw error;
+    if (upsertResult.error) throw upsertResult.error;
 
     return NextResponse.json({ message: `Updated ${news.length} articles` });
   } catch (error) {

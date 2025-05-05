@@ -1,6 +1,5 @@
 // "use client";
 // import { usePathname } from "next/navigation";
-import { FaBell, FaUserCircle } from "react-icons/fa";
 import ThemeSwitch from "./ThemeSwitch";
 import LoginLogoutButton from "@/components/serverSide/loginLogoutButton";
 

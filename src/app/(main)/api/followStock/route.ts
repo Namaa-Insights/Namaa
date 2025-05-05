@@ -1,10 +1,40 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/utils/supabase/server";
 
+// -------------------
+// Type Declarations
+// -------------------
+
+type StockPrice = {
+  date: string;
+  share_price: number;
+};
+
+type Financials = {
+  total_assets: number;
+  total_debt: number;
+};
+
+type StockWithDetails = {
+  ticker: string;
+  company_name: string;
+  sector: string;
+  stock_prices: StockPrice[];
+  financials: Financials[];
+};
+
+type FollowedStockRecord = {
+  stock_id: number;
+  number_of_stocks: number;
+  stocks: StockWithDetails;
+};
+
+// -------------------
+// POST: Follow a Stock
+// -------------------
 
 export async function POST(request: Request) {
   try {
-    // Parse the JSON payload
     const { stock_id } = await request.json();
 
     if (!stock_id) {
@@ -14,10 +44,8 @@ export async function POST(request: Request) {
       );
     }
 
-    // Create the Supabase client instance (server-side)
     const supabase = await createClient();
 
-    // Retrieve the current session to get the authenticated user
     const {
       data: { session },
       error: sessionError,
@@ -29,9 +57,9 @@ export async function POST(request: Request) {
         { status: 401 }
       );
     }
+
     const user_id = session.user.id;
 
-    // Insert a new follow record into the user_follows table
     const { error } = await supabase
       .from("user_follows")
       .insert({ user_id, stock_id });
@@ -51,10 +79,14 @@ export async function POST(request: Request) {
   }
 }
 
-//GET
+// -------------------
+// GET: Followed Stocks with Latest Price & Financials
+// -------------------
+
 export async function GET() {
   try {
     const supabase = await createClient();
+
     const {
       data: { session },
       error: sessionError,
@@ -73,16 +105,16 @@ export async function GET() {
       .from("user_follows")
       .select(
         `
-      number_of_stocks,
-      stock_id,
-      stocks(
-        ticker,
-        company_name,
-        sector,
-        stock_prices(share_price, date),
-        financials(total_assets, total_debt)
-      )
-    `
+        number_of_stocks,
+        stock_id,
+        stocks(
+          ticker,
+          company_name,
+          sector,
+          stock_prices(share_price, date),
+          financials(total_assets, total_debt)
+        )
+      `
       )
       .eq("user_id", user_id);
 
@@ -90,27 +122,34 @@ export async function GET() {
       console.error("Supabase fetch error:", error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
-    const transformed = followedStocks.map((entry: any) => {
-      const stock = entry.stocks;
 
-      const sortedPrices = (stock?.stock_prices || []).sort(
-        (a: any, b: any) =>
-          new Date(b.date).getTime() - new Date(a.date).getTime()
-      );
+    if (!followedStocks) {
+      return NextResponse.json([], { status: 200 });
+    }
 
-      const latestPrice = sortedPrices[0] || {};
-      const financials = stock?.financials?.[0] || {};
+    const transformed = (followedStocks as FollowedStockRecord[]).map(
+      (entry) => {
+        const stock = entry.stocks;
 
-      return {
-        ticker: stock.ticker,
-        company_name: stock.company_name,
-        sector: stock.sector,
-        share_price: latestPrice.share_price,
-        number_of_stocks: entry.number_of_stocks,
-        total_assets: financials.total_assets,
-        total_debt: financials.total_debt,
-      };
-    });
+        const sortedPrices = [...(stock?.stock_prices ?? [])].sort(
+          (a, b) =>
+            new Date(b.date).getTime() - new Date(a.date).getTime()
+        );
+
+        const latestPrice = sortedPrices[0] || {};
+        const financials = stock?.financials?.[0] || {};
+
+        return {
+          ticker: stock.ticker,
+          company_name: stock.company_name,
+          sector: stock.sector,
+          share_price: latestPrice.share_price,
+          number_of_stocks: entry.number_of_stocks,
+          total_assets: financials.total_assets,
+          total_debt: financials.total_debt,
+        };
+      }
+    );
 
     return NextResponse.json(transformed);
   } catch (err) {

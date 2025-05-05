@@ -187,7 +187,8 @@ const fetchSectorStocks = async (supabase: any, sector: string) => {
     .select("stock_id, sector");
 
   return (
-    allStocks?.filter((s) => s.sector === sector).map((s) => s.stock_id) ?? []
+    allStocks?.filter((s: { stock_id: string; sector: string }) => s.sector === sector)
+      .map((s: { stock_id: string; sector: string }) => s.stock_id) ?? []
   );
 };
 
@@ -323,7 +324,7 @@ const Page = async ({ params }: { params: { companyId: string } }) => {
   const sectorMetrics = await fetchSectorMetrics(supabase, sectorStockIds);
   const marketMetrics = await fetchMarketMetrics(supabase);
 
-  const allStockIds = allFinancials.map((f) => f.stock_id);
+  const allStockIds = allFinancials.map((f: Financial) => f.stock_id);
 
   const sectorEPSMap = await fetchLatestMetricsForStocks(
     supabase,
@@ -346,7 +347,7 @@ const Page = async ({ params }: { params: { companyId: string } }) => {
   const marketCap = latestPrice * sharesOutstanding;
   // Filter financials by sector
   const sectorFinancials =
-    allFinancials?.filter((f) => sectorStockIds.includes(f.stock_id)) ?? [];
+    allFinancials?.filter((f: Financial) => sectorStockIds.includes(f.stock_id)) ?? [];
 
   // Calculate sector and market averages
   const sectorMetricAverages = calculateAverageMetrics(sectorMetrics);

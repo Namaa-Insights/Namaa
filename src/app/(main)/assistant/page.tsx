@@ -3,13 +3,31 @@
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import Loading from "../Components/Loading";
 import StockRiskTable from "../Components/StockRiskTable";
-import { Stock } from "@/types/common";
 import { formatCurrency } from "@/utils/formatters";
 
+// --- Types ---
+type AICategorizedStock = {
+  ticker: string;
+  risk_level: string;
+  [key: string]: unknown;
+};
+
+type PortfolioItem = {
+  company_name: string;
+  sector: string;
+  share_price: number;
+  number_of_stocks: number;
+};
+
+type ChatMessage = {
+  role: "user" | "ai";
+  content: string;
+};
+
+// --- Helper Function ---
 function splitAiOutput(aiResponse: string): {
-  categorizedStocks: any[];
+  categorizedStocks: AICategorizedStock[];
   recommendation: string;
 } {
   const jsonStart = aiResponse.indexOf("[");
@@ -18,7 +36,7 @@ function splitAiOutput(aiResponse: string): {
   const jsonString = aiResponse.slice(jsonStart, jsonEnd);
   const recommendation = aiResponse.slice(jsonEnd, -3).trim();
 
-  let categorizedStocks: any[] = [];
+  let categorizedStocks: AICategorizedStock[] = [];
 
   try {
     categorizedStocks = JSON.parse(jsonString);
@@ -32,13 +50,12 @@ function splitAiOutput(aiResponse: string): {
   };
 }
 
+// --- Component ---
 export default function AssistantPage() {
-  const [portfolio, setPortfolio] = useState<any[]>([]);
+  const [portfolio, setPortfolio] = useState<PortfolioItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [chatMode, setChatMode] = useState(false);
-  const [chatHistory, setChatHistory] = useState<
-    { role: "user" | "ai"; content: string }[]
-  >([]);
+  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
   const [userInput, setUserInput] = useState("");
   const [actionResponse, setActionResponse] = useState<{
     action: string;
@@ -49,12 +66,12 @@ export default function AssistantPage() {
     const fetchFollowedStocks = async () => {
       try {
         const res = await fetch("/api/followStock", { method: "GET" });
-        const data = await res.json();
+        const data: PortfolioItem[] = await res.json();
 
         if (res.ok) {
           setPortfolio(data);
         } else {
-          console.error("Error fetching followed stocks:", data.error);
+          console.error("Error fetching followed stocks:", data);
         }
       } catch (err) {
         console.error("Failed to fetch followed stocks:", err);
@@ -89,16 +106,15 @@ export default function AssistantPage() {
       }
     } catch (err) {
       console.error(err);
+      const fallbackMessage =
+        action !== "custom"
+          ? "Something went wrong."
+          : "Failed to contact assistant.";
+
       if (action !== "custom") {
-        setActionResponse({
-          action,
-          content: "Something went wrong.",
-        });
+        setActionResponse({ action, content: fallbackMessage });
       } else {
-        setChatHistory((prev) => [
-          ...prev,
-          { role: "ai", content: "Failed to contact assistant." },
-        ]);
+        setChatHistory((prev) => [...prev, { role: "ai", content: fallbackMessage }]);
       }
     }
 
@@ -109,7 +125,7 @@ export default function AssistantPage() {
     e.preventDefault();
     if (!userInput.trim()) return;
 
-    const newMsg = { role: "user" as const, content: userInput };
+    const newMsg: ChatMessage = { role: "user", content: userInput };
     setChatHistory((prev) => [...prev, newMsg]);
     setUserInput("");
     await handleAction("custom", newMsg.content);
@@ -147,7 +163,7 @@ export default function AssistantPage() {
             {portfolio.length === 0 && (
               <tr>
                 <td colSpan={4} className="p-6 text-center text-gray-500">
-                  You haven't followed any stocks yet.
+                  You haven&apos;t followed any stocks yet.
                 </td>
               </tr>
             )}
@@ -163,17 +179,14 @@ export default function AssistantPage() {
               <p className="text-blue-500">AI is generating results...</p>
             </div>
           ) : actionResponse ? (
-            actionResponse.action == "risk" ? (
+            actionResponse.action === "risk" ? (
               <div>
                 <StockRiskTable
-                  stocks={
-                    splitAiOutput(actionResponse.content).categorizedStocks
-                  }
+                  stocks={splitAiOutput(actionResponse.content).categorizedStocks}
                 />
-                <div>
+                <div className="mt-4">
                   {splitAiOutput(actionResponse.content).recommendation}
                 </div>
-                {/* <div>{actionResponse.content}</div> */}
               </div>
             ) : (
               <>
@@ -196,9 +209,7 @@ export default function AssistantPage() {
         <Button onClick={() => handleAction("summarize")}>Summarize</Button>
         <Button onClick={() => handleAction("evaluate")}>Evaluate</Button>
         <Button onClick={() => handleAction("risk")}>Risks</Button>
-        <Button onClick={() => handleAction("suggest")}>
-          Make Suggestions
-        </Button>
+        <Button onClick={() => handleAction("suggest")}>Make Suggestions</Button>
         <Button variant="outline" onClick={() => setChatMode((prev) => !prev)}>
           {chatMode ? "Close Chat" : "Chat with AI"}
         </Button>
@@ -234,7 +245,7 @@ export default function AssistantPage() {
 
           <form onSubmit={handleSubmitChat} className="flex items-center gap-2">
             <Input
-              placeholder="Ask something like 'Should I diversify?'"
+              placeholder="Ask something like &rsquo;Should I diversify?&rsquo;"
               value={userInput}
               onChange={(e) => setUserInput(e.target.value)}
               className="flex-1"

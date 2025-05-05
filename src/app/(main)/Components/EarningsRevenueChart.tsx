@@ -18,8 +18,9 @@ import {
   CardDescription,
   CardContent,
 } from "@/components/ui/card";
-import { EarningsRevenueChartProps } from '@/types/common'
+import { EarningsRevenueChartProps } from "@/types/common";
 import { formatCurrency } from "@/utils/formatters";
+import type { TooltipProps } from "recharts";
 
 export function EarningsRevenueChart({
   revenue,
@@ -62,7 +63,7 @@ export function EarningsRevenueChart({
     },
   ];
 
-  const CustomTooltip = ({ active, payload }: any) => {
+  const CustomTooltip = ({ active, payload }: TooltipProps<number, string>) => {
     if (active && payload && payload.length) {
       const item = payload[0].payload;
       return (
