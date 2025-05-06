@@ -1,13 +1,12 @@
-// app/companies/[companyId]/page.tsx
-// 'use client';
-
-import React from 'react';
-import { createClient } from '@/utils/supabase/server';
+import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
+import { cookies } from 'next/headers';
+import { Metadata } from 'next';
 import MetricCard from '../../Components/MetricCard';
 import StockMetricsView from '../../Components/StockMetricsView';
 import { EarningsRevenueChart } from '../../Components/EarningsRevenueChart';
 import MetricGauge from '../../Components/MetricGauge';
 import PriceOverTimeChart from '../../Components/PriceOverTimeChart';
+
 import {
   fetchCompanyData,
   fetchCompanyFinancials,
@@ -22,24 +21,34 @@ import {
   getImageUrl,
   computeAveragePE,
 } from '@/lib/data-fetchers';
+
 import {
   calculateFinancialRatios,
   calculateAverageMetrics,
   calculateAverageFinancialRatios,
 } from '@/lib/metrics-utils';
+
 import { StockMetric } from '@/types/common';
 import { formatCurrency } from '@/utils/formatters';
 
-import { Metadata } from 'next';
+export const dynamic = 'force-dynamic';
 
-export async function generateMetadata({ params }: { params: { companyId: string } }): Promise<Metadata> {
+export async function generateMetadata({
+  params,
+}: {
+  params: { companyId: string };
+}): Promise<Metadata> {
   return {
-    title: `Company ${params.companyId}`,
+    title: `Company Overview - ${params.companyId}`,
   };
 }
 
-const Page = async ({ params }: { params: { companyId: string } }) => {
-  const supabase = await createClient();
+export default async function CompanyPage({
+  params,
+}: {
+  params: { companyId: string };
+}) {
+  const supabase = createServerComponentClient({ cookies });
   const { companyId } = params;
 
   const company = await fetchCompanyData(supabase, companyId);
@@ -77,6 +86,7 @@ const Page = async ({ params }: { params: { companyId: string } }) => {
   const dividendYield = metrics?.trailing_annual_dividend_rate ?? null;
 
   const sectorStockIds = await fetchSectorStocks(supabase, company.sector);
+
   const [allFinancials, sectorMetrics, marketMetrics] = await Promise.all([
     fetchAllFinancials(supabase),
     fetchSectorMetrics(supabase, sectorStockIds),
@@ -84,6 +94,7 @@ const Page = async ({ params }: { params: { companyId: string } }) => {
   ]);
 
   const allStockIds = allFinancials.map((f) => f.stock_id);
+
   const [sectorEPSMap, sectorPricesMap, marketEPSMap, marketPricesMap] =
     await Promise.all([
       fetchLatestMetricsForStocks(supabase, sectorStockIds),
@@ -104,70 +115,77 @@ const Page = async ({ params }: { params: { companyId: string } }) => {
     sectorStockIds.includes(f.stock_id)
   );
 
+  const sectorMetricAverages = calculateAverageMetrics(sectorMetrics);
+  const marketMetricAverages = calculateAverageMetrics(marketMetrics);
+
+  const sectorFinancialAverages =
+    calculateAverageFinancialRatios(sectorFinancials);
+  const marketFinancialAverages =
+    calculateAverageFinancialRatios(allFinancials);
+
   const stockMetrics: StockMetric[] = [
     {
       title: 'Return on Equity',
       key: 'roe',
       value: metrics?.return_on_equity,
-      sector: calculateAverageMetrics(sectorMetrics).avgROE,
-      market: calculateAverageMetrics(marketMetrics).avgROE,
+      sector: sectorMetricAverages.avgROE,
+      market: marketMetricAverages.avgROE,
       isPercentage: true,
     },
     {
       title: 'Return on Assets',
       key: 'roa',
       value: metrics?.return_on_assets,
-      sector: calculateAverageMetrics(sectorMetrics).avgROA,
-      market: calculateAverageMetrics(marketMetrics).avgROA,
+      sector: sectorMetricAverages.avgROA,
+      market: marketMetricAverages.avgROA,
       isPercentage: true,
     },
     {
       title: 'Payout Ratio',
       key: 'payout',
       value: metrics?.payout_ratio,
-      sector: calculateAverageMetrics(sectorMetrics).avgPayout,
-      market: calculateAverageMetrics(marketMetrics).avgPayout,
+      sector: sectorMetricAverages.avgPayout,
+      market: marketMetricAverages.avgPayout,
       isPercentage: true,
     },
     {
       title: 'EPS',
       key: 'eps',
       value: metrics?.eps ?? null,
-      sector: calculateAverageMetrics(sectorMetrics).avgEPS,
-      market: calculateAverageMetrics(marketMetrics).avgEPS,
+      sector: sectorMetricAverages.avgEPS,
+      market: marketMetricAverages.avgEPS,
       isPercentage: false,
     },
     {
       title: 'Asset Turnover',
       key: 'asset_turnover',
       value: assetTurnover,
-      sector: calculateAverageFinancialRatios(sectorFinancials)
-        .avgAssetTurnover,
-      market: calculateAverageFinancialRatios(allFinancials).avgAssetTurnover,
+      sector: sectorFinancialAverages.avgAssetTurnover,
+      market: marketFinancialAverages.avgAssetTurnover,
       isPercentage: false,
     },
     {
       title: 'Gross Margin',
       key: 'gross_margin',
       value: grossMargin,
-      sector: calculateAverageFinancialRatios(sectorFinancials).avgGrossMargin,
-      market: calculateAverageFinancialRatios(allFinancials).avgGrossMargin,
+      sector: sectorFinancialAverages.avgGrossMargin,
+      market: marketFinancialAverages.avgGrossMargin,
       isPercentage: true,
     },
     {
       title: 'Net Profit Margin',
       key: 'net_margin',
       value: netMargin,
-      sector: calculateAverageFinancialRatios(sectorFinancials).avgNetMargin,
-      market: calculateAverageFinancialRatios(allFinancials).avgNetMargin,
+      sector: sectorFinancialAverages.avgNetMargin,
+      market: marketFinancialAverages.avgNetMargin,
       isPercentage: true,
     },
     {
       title: 'Dividend Yield',
       key: 'div_yield',
       value: dividendYield,
-      sector: calculateAverageMetrics(sectorMetrics).avgDividendYield,
-      market: calculateAverageMetrics(marketMetrics).avgDividendYield,
+      sector: sectorMetricAverages.avgDividendYield,
+      market: marketMetricAverages.avgDividendYield,
       isPercentage: true,
     },
     {
@@ -182,25 +200,24 @@ const Page = async ({ params }: { params: { companyId: string } }) => {
       title: 'Current Ratio',
       key: 'current_ratio',
       value: currentRatio,
-      sector: calculateAverageFinancialRatios(sectorFinancials).avgCurrentRatio,
-      market: calculateAverageFinancialRatios(allFinancials).avgCurrentRatio,
+      sector: sectorFinancialAverages.avgCurrentRatio,
+      market: marketFinancialAverages.avgCurrentRatio,
       isPercentage: false,
     },
     {
       title: 'Quick Ratio',
       key: 'quick_ratio',
       value: quickRatio,
-      sector: calculateAverageFinancialRatios(sectorFinancials).avgQuickRatio,
-      market: calculateAverageFinancialRatios(allFinancials).avgQuickRatio,
+      sector: sectorFinancialAverages.avgQuickRatio,
+      market: marketFinancialAverages.avgQuickRatio,
       isPercentage: false,
     },
     {
       title: 'Interest Coverage',
       key: 'interest_coverage',
       value: interestCoverage,
-      sector:
-        calculateAverageFinancialRatios(sectorFinancials).avgInterestCoverage,
-      market: calculateAverageFinancialRatios(allFinancials).avgInterestCoverage,
+      sector: sectorFinancialAverages.avgInterestCoverage,
+      market: marketFinancialAverages.avgInterestCoverage,
       isPercentage: false,
     },
   ];
@@ -221,7 +238,8 @@ const Page = async ({ params }: { params: { companyId: string } }) => {
             <div>
               <h1 className="text-3xl font-bold">{company.company_name}</h1>
               <p className="text-base text-gray-600 dark:text-gray-300 mt-1">
-                Ticker: <span className="font-medium">{company.ticker}</span>
+                Ticker:{' '}
+                <span className="font-medium">{company.ticker}</span>
               </p>
             </div>
           </div>
@@ -235,11 +253,13 @@ const Page = async ({ params }: { params: { companyId: string } }) => {
             </div>
             <div className="p-3 bg-gray-100 dark:bg-gray-700 rounded-md">
               <strong>Shares Outstanding:</strong>{' '}
-              {formatCurrency(sharesOutstanding) ?? 'N/A'}
+              {formatCurrency(sharesOutstanding)}
             </div>
             <div className="p-3 bg-gray-100 dark:bg-gray-700 rounded-md">
               <strong>Price:</strong>{' '}
-              {latestPrice ? `${formatCurrency(latestPrice.toFixed(2))}` : 'N/A'}
+              {latestPrice
+                ? `${formatCurrency(latestPrice.toFixed(2))}`
+                : 'N/A'}
             </div>
           </div>
         </div>
@@ -248,13 +268,8 @@ const Page = async ({ params }: { params: { companyId: string } }) => {
           <MetricGauge
             title="Current Ratio Gauge"
             company={currentRatio ?? 0}
-            sector={
-              calculateAverageFinancialRatios(sectorFinancials).avgCurrentRatio ??
-              0
-            }
-            market={
-              calculateAverageFinancialRatios(allFinancials).avgCurrentRatio ?? 0
-            }
+            sector={sectorFinancialAverages.avgCurrentRatio ?? 0}
+            market={marketFinancialAverages.avgCurrentRatio ?? 0}
             max={3}
           />
         </div>
@@ -297,6 +312,4 @@ const Page = async ({ params }: { params: { companyId: string } }) => {
       />
     </div>
   );
-};
-
-export default Page;
+}
