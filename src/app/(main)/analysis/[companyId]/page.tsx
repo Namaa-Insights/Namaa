@@ -30,6 +30,14 @@ import {
 import { StockMetric } from '@/types/common';
 import { formatCurrency } from '@/utils/formatters';
 
+import { Metadata } from 'next';
+
+export async function generateMetadata({ params }: { params: { companyId: string } }): Promise<Metadata> {
+  return {
+    title: `Company ${params.companyId}`,
+  };
+}
+
 const Page = async ({ params }: { params: { companyId: string } }) => {
   const supabase = await createClient();
   const { companyId } = params;
