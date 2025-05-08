@@ -33,6 +33,7 @@ import { formatCurrency } from '@/utils/formatters';
 
 export const dynamic = 'force-dynamic';
 
+// Fixed the type definition for the metadata function
 export async function generateMetadata({
   params,
 }: {
@@ -43,6 +44,7 @@ export async function generateMetadata({
   };
 }
 
+// Fixed the type definition for the main page component
 export default async function CompanyPage({
   params,
 }: {
